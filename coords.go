@@ -25,7 +25,7 @@ type BlockCoords struct {
 func (b BlockCoords) ChunkCoords() ChunkCoords {
 	return ChunkCoords{
 		X: int32(b.X >> 4),
-		Z: int32(b.Z >> 16),
+		Z: int32(b.Z >> 4),
 	}
 }
 
@@ -33,15 +33,43 @@ type ChunkCoords struct {
 	X, Z int32
 }
 
+func (o ChunkCoords) Ring(radius int) []ChunkCoords {
+	start := ChunkCoords{o.X + int32(-radius), o.Z + int32(radius)}
+	length := 8 * radius
+	segLen := 2 * radius
+	coeff := ChunkCoords{1, 0}
+	res := make([]ChunkCoords, length)
+	for j := 0; j < 4; j++ {
+		for i := 0; i < segLen; i++ {
+			res[j*segLen+i] = ChunkCoords{
+				start.X + coeff.X*int32(i),
+				start.Z + coeff.Z*int32(i),
+			}
+		}
+		last := res[segLen*(j+1)-1]
+		start = ChunkCoords{last.X + coeff.X, last.Z + coeff.Z}
+		switch j {
+		case 0:
+			coeff = ChunkCoords{0, -1}
+		case 1:
+			coeff = ChunkCoords{-1, 0}
+		case 2:
+			coeff = ChunkCoords{0, 1}
+		}
+	}
+	return res
+}
+
 // Radius returns an array containing the ChunkCoords of an rxr area around this chunk
-func (orig ChunkCoords) Radius(r int) []ChunkCoords {
+func (o ChunkCoords) Radius(r int) []ChunkCoords {
 	region := make([]ChunkCoords, (r*2+1)*(r*2+1))
-	i := 0
-	a := int32(r)
-	for x := orig.X - a; x <= orig.X+a; x++ {
-		for z := orig.Z - a; z <= orig.Z+a; z++ {
-			region[i] = ChunkCoords{x, z}
-			i++
+	region[0] = o
+	chunkIdx := 1
+	for i := 1; i <= r; i++ {
+		ring := o.Ring(i)
+		for _, c := range ring {
+			region[chunkIdx] = c
+			chunkIdx++
 		}
 	}
 	return region

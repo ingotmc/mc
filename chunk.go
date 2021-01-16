@@ -27,11 +27,16 @@ func (s Section) blockAt(coords BlockCoords) *Block {
 	return &s[idx]
 }
 
+func (s *Section) setBlockAt(coords BlockCoords, block Block) {
+	idx := coords.X&15 + 16*(coords.Z&15) + 256*(coords.Y&15)
+	s[idx] = block
+}
+
 // Chunk represents a 16x256x16 collection of blocks.
 // Also referred to as "Chunk Column" in protocol documentation.
 type Chunk struct {
-	Coords   ChunkCoords
-	Sections [16]*Section
+	Coords    ChunkCoords
+	Sections  [16]*Section
 	Heightmap Heightmap
 }
 
@@ -50,4 +55,21 @@ func (chunk Chunk) BlockAt(blockCoords BlockCoords) (*Block, error) {
 		return GlobalPalette["minecraft:air"].DefaultState, nil
 	}
 	return sec.blockAt(blockCoords), nil
+}
+
+func (chunk *Chunk) SetBlockAt(blockCoords BlockCoords, block Block) error {
+	if blockCoords.ChunkCoords() != chunk.Coords {
+		return ErrBlockNotInChunk{
+			chunkCoords: chunk.Coords,
+			blockCoords: blockCoords,
+		}
+	}
+	secIdx := blockCoords.Y >> 4
+	sec := chunk.Sections[secIdx]
+	if sec == nil { // a nil section is composed of all air
+		sec = new(Section)
+		chunk.Sections[secIdx] = sec
+	}
+	sec.setBlockAt(blockCoords, block)
+	return nil
 }
